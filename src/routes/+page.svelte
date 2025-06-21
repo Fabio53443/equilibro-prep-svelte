@@ -11,6 +11,12 @@
 		COMUNE: [],
 		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: []
 	};
+	let filterCollapsed = {
+		REGIONE: false,
+		PROVINCIA: false,
+		COMUNE: false,
+		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: false
+	};
 	let searchQuery = '';
 	let loading = false;
 	let processing = false;
@@ -121,6 +127,10 @@
 		filters[filterKey] = [...availableValues];
 		// Clean up dependent filters after selecting all
 		cleanupDependentFilters(filterKey);
+	}
+
+	function toggleFilterCollapse(filterKey) {
+		filterCollapsed[filterKey] = !filterCollapsed[filterKey];
 	}
 
 	function clearAllFilters() {
@@ -316,41 +326,49 @@
 
 					<!-- Filtro Regioni -->
 					<div class="filter-group">
-						<div class="filter-header">
-							<h4>Regioni ({filters.REGIONE.length} selezionate)</h4>
+						<div class="filter-header" on:click={() => toggleFilterCollapse('REGIONE')} on:keydown={(e) => e.key === 'Enter' && toggleFilterCollapse('REGIONE')} role="button" tabindex="0">
+							<div class="filter-header-left">
+								<span class="filter-toggle-icon" class:collapsed={filterCollapsed.REGIONE}>▼</span>
+								<h4>Regioni ({filters.REGIONE.length} selezionate)</h4>
+							</div>
 							<div class="filter-header-buttons">
-								<button on:click={() => selectAllFilter('REGIONE')} class="btn-select-all">Seleziona Tutto</button>
-								<button on:click={() => clearFilter('REGIONE')} class="btn-clear">Cancella</button>
+								<button on:click|stopPropagation={() => selectAllFilter('REGIONE')} class="btn-select-all">Seleziona Tutto</button>
+								<button on:click|stopPropagation={() => clearFilter('REGIONE')} class="btn-clear">Cancella</button>
 							</div>
 						</div>
-						<div class="filter-options">
-							{#each uniqueRegions as region}
-								<label class="filter-option">
-									<input
-										type="checkbox"
-										checked={filters.REGIONE.includes(region)}
-										on:change={() => toggleFilterValue('REGIONE', region)}
-									/>
-									{region}
-								</label>
-							{/each}
-						</div>
+						{#if !filterCollapsed.REGIONE}
+							<div class="filter-options">
+								{#each uniqueRegions as region}
+									<label class="filter-option">
+										<input
+											type="checkbox"
+											checked={filters.REGIONE.includes(region)}
+											on:change={() => toggleFilterValue('REGIONE', region)}
+										/>
+										{region}
+									</label>
+								{/each}
+							</div>
+						{/if}
 					</div>
 
 					<!-- Filtro Province -->
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0}>
-						<div class="filter-header">
-							<h4>Province ({filters.PROVINCIA.length} selezionate)</h4>
+						<div class="filter-header" on:click={() => toggleFilterCollapse('PROVINCIA')} on:keydown={(e) => e.key === 'Enter' && toggleFilterCollapse('PROVINCIA')} role="button" tabindex="0">
+							<div class="filter-header-left">
+								<span class="filter-toggle-icon" class:collapsed={filterCollapsed.PROVINCIA}>▼</span>
+								<h4>Province ({filters.PROVINCIA.length} selezionate)</h4>
+							</div>
 							<div class="filter-header-buttons">
-								<button on:click={() => selectAllFilter('PROVINCIA')} class="btn-select-all" disabled={filters.REGIONE.length === 0}>Seleziona Tutto</button>
-								<button on:click={() => clearFilter('PROVINCIA')} class="btn-clear">Cancella</button>
+								<button on:click|stopPropagation={() => selectAllFilter('PROVINCIA')} class="btn-select-all" disabled={filters.REGIONE.length === 0}>Seleziona Tutto</button>
+								<button on:click|stopPropagation={() => clearFilter('PROVINCIA')} class="btn-clear">Cancella</button>
 							</div>
 						</div>
 						{#if filters.REGIONE.length === 0}
 							<div class="filter-disabled-message">
 								Seleziona prima una regione per filtrare le province
 							</div>
-						{:else}
+						{:else if !filterCollapsed.PROVINCIA}
 							<div class="filter-options">
 								{#each uniqueProvinces as provincia}
 									<label class="filter-option">
@@ -359,26 +377,28 @@
 											checked={filters.PROVINCIA.includes(provincia)}
 											on:change={() => toggleFilterValue('PROVINCIA', provincia)}
 										/>
-										{provincia}								</label>
-							{/each}
-						</div>
-					{/if}
-					</div>
-
-					<!-- Filtro Città -->
+										{provincia}
+									</label>
+								{/each}
+							</div>
+						{/if}
+					</div>					<!-- Filtro Città -->
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}>
-						<div class="filter-header">
-							<h4>Città ({filters.COMUNE.length} selezionate)</h4>
+						<div class="filter-header" on:click={() => toggleFilterCollapse('COMUNE')} on:keydown={(e) => e.key === 'Enter' && toggleFilterCollapse('COMUNE')} role="button" tabindex="0">
+							<div class="filter-header-left">
+								<span class="filter-toggle-icon" class:collapsed={filterCollapsed.COMUNE}>▼</span>
+								<h4>Città ({filters.COMUNE.length} selezionate)</h4>
+							</div>
 							<div class="filter-header-buttons">
-								<button on:click={() => selectAllFilter('COMUNE')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}>Seleziona Tutto</button>
-								<button on:click={() => clearFilter('COMUNE')} class="btn-clear">Cancella</button>
+								<button on:click|stopPropagation={() => selectAllFilter('COMUNE')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}>Seleziona Tutto</button>
+								<button on:click|stopPropagation={() => clearFilter('COMUNE')} class="btn-clear">Cancella</button>
 							</div>
 						</div>
 						{#if filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}
 							<div class="filter-disabled-message">
 								Seleziona prima una regione o provincia per filtrare le città
 							</div>
-						{:else}
+						{:else if !filterCollapsed.COMUNE}
 							<div class="filter-options">
 								{#each uniqueCommunes as comune}
 									<label class="filter-option">
@@ -387,26 +407,28 @@
 											checked={filters.COMUNE.includes(comune)}
 											on:change={() => toggleFilterValue('COMUNE', comune)}
 										/>
-										{comune}								</label>
-							{/each}
-						</div>
-					{/if}
-					</div>
-
-					<!-- Filtro Tipi di Scuola -->
+										{comune}
+									</label>
+								{/each}
+							</div>
+						{/if}
+					</div>					<!-- Filtro Tipi di Scuola -->
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}>
-						<div class="filter-header">
-							<h4>Tipi di Scuola ({filters.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA.length} selezionati)</h4>
+						<div class="filter-header" on:click={() => toggleFilterCollapse('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} on:keydown={(e) => e.key === 'Enter' && toggleFilterCollapse('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} role="button" tabindex="0">
+							<div class="filter-header-left">
+								<span class="filter-toggle-icon" class:collapsed={filterCollapsed.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA}>▼</span>
+								<h4>Tipi di Scuola ({filters.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA.length} selezionati)</h4>
+							</div>
 							<div class="filter-header-buttons">
-								<button on:click={() => selectAllFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}>Seleziona Tutto</button>
-								<button on:click={() => clearFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-clear">Cancella</button>
+								<button on:click|stopPropagation={() => selectAllFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}>Seleziona Tutto</button>
+								<button on:click|stopPropagation={() => clearFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-clear">Cancella</button>
 							</div>
 						</div>
 						{#if filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}
 							<div class="filter-disabled-message">
 								Seleziona prima una località per filtrare i tipi di scuola
 							</div>
-						{:else}
+						{:else if !filterCollapsed.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA}
 							<div class="filter-options">
 								{#each uniqueSchoolTypes as type}
 									<label class="filter-option">
@@ -415,10 +437,11 @@
 											checked={filters.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA.includes(type)}
 											on:change={() => toggleFilterValue('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA', type)}
 										/>
-										{type}								</label>
-							{/each}
-						</div>
-					{/if}
+										{type}
+									</label>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -617,6 +640,34 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		cursor: pointer;
+		transition: background-color 0.2s ease;
+		user-select: none;
+	}
+
+	.filter-header:hover {
+		background: #f1f5f9;
+	}
+
+	.filter-header:focus {
+		outline: 2px solid #3b82f6;
+		outline-offset: -2px;
+	}
+
+	.filter-header-left {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.filter-toggle-icon {
+		font-size: 0.75rem;
+		transition: transform 0.2s ease;
+		color: #6b7280;
+	}
+
+	.filter-toggle-icon.collapsed {
+		transform: rotate(-90deg);
 	}
 
 	.filter-header h4 {
