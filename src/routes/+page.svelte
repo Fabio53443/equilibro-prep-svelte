@@ -100,6 +100,29 @@
 		cleanupDependentFilters(filterKey);
 	}
 
+	function selectAllFilter(filterKey) {
+		let availableValues = [];
+		
+		switch (filterKey) {
+			case 'REGIONE':
+				availableValues = uniqueRegions;
+				break;
+			case 'PROVINCIA':
+				availableValues = uniqueProvinces;
+				break;
+			case 'COMUNE':
+				availableValues = uniqueCommunes;
+				break;
+			case 'DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA':
+				availableValues = uniqueSchoolTypes;
+				break;
+		}
+		
+		filters[filterKey] = [...availableValues];
+		// Clean up dependent filters after selecting all
+		cleanupDependentFilters(filterKey);
+	}
+
 	function clearAllFilters() {
 		filters = {
 			REGIONE: [],
@@ -259,14 +282,14 @@
 </script>
 
 <svelte:head>
-	<title>Processore CSV - Liste Libri Scolastiche</title>
+	<title>Prep Equilibro 2025</title>
 	<meta name="description" content="Elabora liste libri scolastiche e genera report" />
 </svelte:head>
 
 <div class="container">
 	<header>
-		<h1>📚 Processore Liste Libri Scolastiche</h1>
-		<p>Seleziona le scuole ed elabora i dati CSV per generare liste libri e report</p>
+		<h1>📚 Prep Equilibro 2025</h1>
+		<p>Seleziona le scuole del tuo territorio per generare i file necessari a popolare l'app del mercatino dei libri.</p>
 	</header>
 
 	<main>
@@ -295,7 +318,10 @@
 					<div class="filter-group">
 						<div class="filter-header">
 							<h4>Regioni ({filters.REGIONE.length} selezionate)</h4>
-							<button on:click={() => clearFilter('REGIONE')} class="btn-clear">Cancella</button>
+							<div class="filter-header-buttons">
+								<button on:click={() => selectAllFilter('REGIONE')} class="btn-select-all">Seleziona Tutto</button>
+								<button on:click={() => clearFilter('REGIONE')} class="btn-clear">Cancella</button>
+							</div>
 						</div>
 						<div class="filter-options">
 							{#each uniqueRegions as region}
@@ -315,7 +341,10 @@
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0}>
 						<div class="filter-header">
 							<h4>Province ({filters.PROVINCIA.length} selezionate)</h4>
-							<button on:click={() => clearFilter('PROVINCIA')} class="btn-clear">Cancella</button>
+							<div class="filter-header-buttons">
+								<button on:click={() => selectAllFilter('PROVINCIA')} class="btn-select-all" disabled={filters.REGIONE.length === 0}>Seleziona Tutto</button>
+								<button on:click={() => clearFilter('PROVINCIA')} class="btn-clear">Cancella</button>
+							</div>
 						</div>
 						{#if filters.REGIONE.length === 0}
 							<div class="filter-disabled-message">
@@ -330,18 +359,20 @@
 											checked={filters.PROVINCIA.includes(provincia)}
 											on:change={() => toggleFilterValue('PROVINCIA', provincia)}
 										/>
-										{provincia}
-									</label>
-								{/each}
-							</div>
-						{/if}
+										{provincia}								</label>
+							{/each}
+						</div>
+					{/if}
 					</div>
 
 					<!-- Filtro Città -->
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}>
 						<div class="filter-header">
 							<h4>Città ({filters.COMUNE.length} selezionate)</h4>
-							<button on:click={() => clearFilter('COMUNE')} class="btn-clear">Cancella</button>
+							<div class="filter-header-buttons">
+								<button on:click={() => selectAllFilter('COMUNE')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}>Seleziona Tutto</button>
+								<button on:click={() => clearFilter('COMUNE')} class="btn-clear">Cancella</button>
+							</div>
 						</div>
 						{#if filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0}
 							<div class="filter-disabled-message">
@@ -356,18 +387,20 @@
 											checked={filters.COMUNE.includes(comune)}
 											on:change={() => toggleFilterValue('COMUNE', comune)}
 										/>
-										{comune}
-									</label>
-								{/each}
-							</div>
-						{/if}
+										{comune}								</label>
+							{/each}
+						</div>
+					{/if}
 					</div>
 
 					<!-- Filtro Tipi di Scuola -->
 					<div class="filter-group" class:disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}>
 						<div class="filter-header">
 							<h4>Tipi di Scuola ({filters.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA.length} selezionati)</h4>
-							<button on:click={() => clearFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-clear">Cancella</button>
+							<div class="filter-header-buttons">
+								<button on:click={() => selectAllFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-select-all" disabled={filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}>Seleziona Tutto</button>
+								<button on:click={() => clearFilter('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA')} class="btn-clear">Cancella</button>
+							</div>
 						</div>
 						{#if filters.REGIONE.length === 0 && filters.PROVINCIA.length === 0 && filters.COMUNE.length === 0}
 							<div class="filter-disabled-message">
@@ -382,11 +415,10 @@
 											checked={filters.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA.includes(type)}
 											on:change={() => toggleFilterValue('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA', type)}
 										/>
-										{type}
-									</label>
-								{/each}
-							</div>
-						{/if}
+										{type}								</label>
+							{/each}
+						</div>
+					{/if}
 					</div>
 				</div>
 			</div>
@@ -443,7 +475,7 @@
 				{#if processing}
 					🔄 Elaborazione in corso...
 				{:else}
-					📊 Elabora Dati CSV
+					📊 Elabora Dati
 				{/if}
 			</button>
 
@@ -594,19 +626,69 @@
 		color: #475569;
 	}
 
+	.filter-header-buttons {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.btn-select-all {
+		background: linear-gradient(135deg, #10b981, #059669);
+		color: white;
+		border: none;
+		font-size: 0.75rem;
+		font-weight: 500;
+		cursor: pointer;
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		transition: all 0.2s ease;
+		box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
+	}
+
+	.btn-select-all:hover:not(:disabled) {
+		background: linear-gradient(135deg, #059669, #047857);
+		transform: translateY(-1px);
+		box-shadow: 0 2px 6px rgba(16, 185, 129, 0.4);
+	}
+
+	.btn-select-all:active:not(:disabled) {
+		transform: translateY(0);
+		box-shadow: 0 1px 3px rgba(16, 185, 129, 0.3);
+	}
+
+	.btn-select-all:disabled {
+		background: #d1d5db;
+		color: #9ca3af;
+		cursor: not-allowed;
+		transform: none;
+		box-shadow: none;
+	}
+
 	.btn-clear {
 		background: none;
-		border: none;
-		color: #ef4444;
+		border: 1px solid #fecaca;
+		color: #dc2626;
 		font-size: 0.75rem;
+		font-weight: 500;
 		cursor: pointer;
-		padding: 0.25rem 0.5rem;
-		border-radius: 4px;
-		transition: background-color 0.2s;
+		padding: 0.375rem 0.75rem;
+		border-radius: 6px;
+		transition: all 0.2s ease;
+		text-transform: uppercase;
+		letter-spacing: 0.025em;
 	}
 
 	.btn-clear:hover {
-		background: #fee2e2;
+		background: #fef2f2;
+		border-color: #f87171;
+		color: #b91c1c;
+		transform: translateY(-1px);
+	}
+
+	.btn-clear:active {
+		transform: translateY(0);
 	}
 
 	.filter-disabled-message {
