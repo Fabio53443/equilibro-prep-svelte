@@ -5,6 +5,7 @@
 	let schools = [];
 	let filteredSchools = [];
 	let selectedSchools = [];
+	let schoolBookData = {}; // Map of school codes to class counts
 	let filters = {
 		REGIONE: [],
 		PROVINCIA: [],
@@ -26,6 +27,7 @@
 	// Load schools data on component mount
 	onMount(async () => {
 		await loadSchools();
+		await loadSchoolBookData();
 	});
 
 	async function loadSchools() {
@@ -37,6 +39,15 @@
 			console.error('Errore nel caricamento delle scuole:', error);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadSchoolBookData() {
+		try {
+			const response = await fetch('/api/school-book-data');
+			schoolBookData = await response.json();
+		} catch (error) {
+			console.error('Errore nel caricamento dei dati libri:', error);
 		}
 	}
 
@@ -473,7 +484,24 @@
 									on:change={() => toggleSchoolSelection(school.CODICESCUOLA)}
 								/>
 								<div class="school-info">
-									<div class="school-name">{school.DENOMINAZIONESCUOLA}</div>
+									<div class="school-name">
+										{school.DENOMINAZIONESCUOLA}
+										{#if schoolBookData[school.CODICESCUOLA]}
+											<span 
+												class="book-indicator has-data" 
+												title="Scuola con dati libri - {schoolBookData[school.CODICESCUOLA]} classi"
+											>
+												🟢
+											</span>
+										{:else}
+											<span 
+												class="book-indicator no-data" 
+												title="Scuola senza dati libri"
+											>
+												🔴
+											</span>
+										{/if}
+									</div>
 									<div class="school-details">
 										<span class="school-code">{school.CODICESCUOLA}</span>
 										<span class="school-location">{school.COMUNE}, {school.PROVINCIA}</span>
@@ -911,6 +939,29 @@
 		font-weight: 600;
 		color: #1e293b;
 		margin-bottom: 0.25rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.book-indicator {
+		font-size: 0.75rem;
+		cursor: help;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.25rem;
+		height: 1.25rem;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.book-indicator.has-data {
+		background-color: rgba(34, 197, 94, 0.1);
+	}
+
+	.book-indicator.no-data {
+		background-color: rgba(239, 68, 68, 0.1);
 	}
 
 	.school-details {
