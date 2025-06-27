@@ -102,6 +102,9 @@ export function processCsvData(inputData, selectedSchools = null) {
             title = `${row.TITOLO} - ${row.SOTTOTITOLO}`;
         }
         
+        // Replace all commas with dashes in the title
+        title = title.replace(/,/g, '-');
+        
         output2Data.push({
             ISBN: isbn,
             Titolo: title,

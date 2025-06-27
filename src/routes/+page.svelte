@@ -10,24 +10,41 @@
 		REGIONE: [],
 		PROVINCIA: [],
 		COMUNE: [],
-		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: []
+		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: [],
+		BOOK_AVAILABILITY: [] // 'has-data', 'no-data'
 	};
 	let filterCollapsed = {
 		REGIONE: false,
 		PROVINCIA: false,
 		COMUNE: false,
-		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: false
+		DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: false,
+		BOOK_AVAILABILITY: false
 	};
 	let searchQuery = '';
+	let debouncedSearchQuery = '';
 	let loading = false;
 	let processing = false;
 	let processResults = null;
 	let downloadUrls = {};
+	let initialLoading = true;
+	let bookDataLoading = false;
+	let loadingSteps = {
+		schools: false,
+		bookData: false
+	};
 
 	// Load schools data on component mount
 	onMount(async () => {
+		// Load schools first (smaller dataset, needed for UI)
 		await loadSchools();
-		await loadSchoolBookData();
+		
+		// Allow UI to become responsive before loading book data
+		await new Promise(resolve => setTimeout(resolve, 100));
+		
+		// Load book data in background
+		loadSchoolBookData();
+		
+		initialLoading = false;
 	});
 
 	async function loadSchools() {
@@ -35,6 +52,7 @@
 		try {
 			const response = await fetch('/api/schools');
 			schools = await response.json();
+			loadingSteps.schools = true;
 		} catch (error) {
 			console.error('Errore nel caricamento delle scuole:', error);
 		} finally {
@@ -43,41 +61,72 @@
 	}
 
 	async function loadSchoolBookData() {
+		bookDataLoading = true;
 		try {
 			const response = await fetch('/api/school-book-data');
 			schoolBookData = await response.json();
+			loadingSteps.bookData = true;
 		} catch (error) {
 			console.error('Errore nel caricamento dei dati libri:', error);
+		} finally {
+			bookDataLoading = false;
 		}
 	}
 
-	// Filter schools based on search and filters - make it properly reactive
-	$: filteredSchools = schools.filter(school => {
-		// Apply text search
-		if (searchQuery) {
-			const query = searchQuery.toLowerCase();
-			const searchFields = [
-				school.DENOMINAZIONESCUOLA,
-				school.CODICESCUOLA,
-				school.COMUNE,
-				school.PROVINCIA
-			];
-			if (!searchFields.some(field => field?.toLowerCase().includes(query))) {
-				return false;
-			}
-		}
+	// Debounce search query
+	let searchTimeout;
+	$: {
+		if (searchTimeout) clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			debouncedSearchQuery = searchQuery;
+		}, 200);
+	}
 
-		// Apply dropdown filters (now supporting arrays)
-		for (const [key, selectedValues] of Object.entries(filters)) {
-			if (selectedValues && selectedValues.length > 0) {
-				if (!selectedValues.includes(school[key])) {
-					return false;
+	// Filter schools based on search and filters - debounced for performance
+	let filterTimeout;
+	$: {
+		// Clear existing timeout
+		if (filterTimeout) clearTimeout(filterTimeout);
+		
+		// Debounce filtering to prevent blocking
+		filterTimeout = setTimeout(() => {
+			filteredSchools = schools.filter(school => {
+				// Apply text search
+				if (debouncedSearchQuery) {
+					const query = debouncedSearchQuery.toLowerCase();
+					const searchFields = [
+						school.DENOMINAZIONESCUOLA,
+						school.CODICESCUOLA,
+						school.COMUNE,
+						school.PROVINCIA
+					];
+					if (!searchFields.some(field => field?.toLowerCase().includes(query))) {
+						return false;
+					}
 				}
-			}
-		}
 
-		return true;
-	});
+				// Apply dropdown filters (now supporting arrays)
+				for (const [key, selectedValues] of Object.entries(filters)) {
+					if (selectedValues && selectedValues.length > 0) {
+						if (key === 'BOOK_AVAILABILITY') {
+							// Special handling for book availability filter
+							const hasBookData = schoolBookData[school.CODICESCUOLA];
+							const schoolStatus = hasBookData ? 'has-data' : 'no-data';
+							if (!selectedValues.includes(schoolStatus)) {
+								return false;
+							}
+						} else {
+							if (!selectedValues.includes(school[key])) {
+								return false;
+							}
+						}
+					}
+				}
+
+				return true;
+			});
+		}, 50); // Quick response for dropdown filters
+	}
 
 	function toggleSchoolSelection(schoolCode) {
 		if (selectedSchools.includes(schoolCode)) {
@@ -92,6 +141,14 @@
 			.map(school => school.CODICESCUOLA)
 			.filter(code => !selectedSchools.includes(code));
 		selectedSchools = [...selectedSchools, ...newSelections];
+	}
+
+	function selectAllFilteredWithData() {
+		const schoolsWithData = filteredSchools
+			.filter(school => schoolBookData[school.CODICESCUOLA])
+			.map(school => school.CODICESCUOLA)
+			.filter(code => !selectedSchools.includes(code));
+		selectedSchools = [...selectedSchools, ...schoolsWithData];
 	}
 
 	function clearSelection() {
@@ -133,6 +190,9 @@
 			case 'DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA':
 				availableValues = uniqueSchoolTypes;
 				break;
+			case 'BOOK_AVAILABILITY':
+				availableValues = ['has-data', 'no-data'];
+				break;
 		}
 		
 		filters[filterKey] = [...availableValues];
@@ -149,7 +209,8 @@
 			REGIONE: [],
 			PROVINCIA: [],
 			COMUNE: [],
-			DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: []
+			DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA: [],
+			BOOK_AVAILABILITY: []
 		};
 	}
 
@@ -237,14 +298,20 @@
 		});
 	};
 
-	// Reactive variables for cascading dropdown options
+	// Reactive validation for selected schools
+	$: selectedSchoolsWithData = selectedSchools.filter(schoolCode => 
+		schoolBookData[schoolCode]
+	);
+	$: hasValidSelection = selectedSchoolsWithData.length > 0;
+
+	// Reactive variables for cascading dropdown options - memoized for performance
 	$: uniqueRegions = schools.length > 0 ? getUniqueValues('REGIONE') : [];
-	$: filteredSchoolsForProvinces = getFilteredSchoolsForCascading();
-	$: uniqueProvinces = schools.length > 0 ? getUniqueValues('PROVINCIA', filteredSchoolsForProvinces) : [];
-	$: filteredSchoolsForCommunes = getFilteredSchoolsForCommunes();
-	$: uniqueCommunes = schools.length > 0 ? getUniqueValues('COMUNE', filteredSchoolsForCommunes) : [];
-	$: filteredSchoolsForTypes = getFilteredSchoolsForTypes();
-	$: uniqueSchoolTypes = schools.length > 0 ? getUniqueValues('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA', filteredSchoolsForTypes) : [];
+	$: filteredSchoolsForProvinces = filters.REGIONE.length > 0 ? getFilteredSchoolsForCascading() : schools;
+	$: uniqueProvinces = filteredSchoolsForProvinces.length > 0 ? getUniqueValues('PROVINCIA', filteredSchoolsForProvinces) : [];
+	$: filteredSchoolsForCommunes = (filters.REGIONE.length > 0 || filters.PROVINCIA.length > 0) ? getFilteredSchoolsForCommunes() : schools;
+	$: uniqueCommunes = filteredSchoolsForCommunes.length > 0 ? getUniqueValues('COMUNE', filteredSchoolsForCommunes) : [];
+	$: filteredSchoolsForTypes = (filters.REGIONE.length > 0 || filters.PROVINCIA.length > 0 || filters.COMUNE.length > 0) ? getFilteredSchoolsForTypes() : schools;
+	$: uniqueSchoolTypes = filteredSchoolsForTypes.length > 0 ? getUniqueValues('DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA', filteredSchoolsForTypes) : [];
 
 	// Clean up dependent filters to only keep valid values
 	function cleanupDependentFilters(changedFilter) {
@@ -307,7 +374,26 @@
 	<meta name="description" content="Elabora liste libri scolastiche e genera report" />
 </svelte:head>
 
-<div class="container">
+{#if initialLoading}
+	<div class="loading-overlay">
+		<div class="loading-content">
+			<div class="loading-spinner"></div>
+			<h2>Caricamento in corso...</h2>
+			<div class="loading-steps">
+				<div class="loading-step" class:completed={loadingSteps.schools}>
+					<span class="step-icon">{loadingSteps.schools ? '✅' : '⏳'}</span>
+					<span class="step-text">Caricamento elenco scuole</span>
+				</div>
+				<div class="loading-step" class:completed={loadingSteps.bookData}>
+					<span class="step-icon">{loadingSteps.bookData ? '✅' : '⏳'}</span>
+					<span class="step-text">Caricamento dati libri</span>
+				</div>
+			</div>
+			<p class="loading-subtitle">Attendere prego, stiamo preparando tutto per te...</p>
+		</div>
+	</div>
+{:else}
+	<div class="container">
 	<header>
 		<h1>📚 Prep Equilibro 2025</h1>
 		<p>Seleziona le scuole del tuo territorio per generare i file necessari a popolare l'app del mercatino dei libri.</p>
@@ -317,6 +403,13 @@
 		<!-- Sezione Filtri Scuole -->
 		<section class="filter-section">
 			<h2>🏫 Selezione Scuole</h2>
+			
+			{#if bookDataLoading}
+				<div class="book-data-loading">
+					<span class="loading-icon">⏳</span>
+					Caricamento indicatori dati libri in corso...
+				</div>
+			{/if}
 			
 			<!-- Ricerca e Filtri -->
 			<div class="search-filters">
@@ -454,6 +547,44 @@
 							</div>
 						{/if}
 					</div>
+
+					<!-- Filtro Disponibilità Libri -->
+					<div class="filter-group">
+						<div class="filter-header" on:click={() => toggleFilterCollapse('BOOK_AVAILABILITY')} on:keydown={(e) => e.key === 'Enter' && toggleFilterCollapse('BOOK_AVAILABILITY')} role="button" tabindex="0">
+							<div class="filter-header-left">
+								<span class="filter-toggle-icon" class:collapsed={filterCollapsed.BOOK_AVAILABILITY}>▼</span>
+								<h4>Disponibilità Dati Libri ({filters.BOOK_AVAILABILITY.length} selezionati)</h4>
+							</div>
+							<div class="filter-header-buttons">
+								<button on:click|stopPropagation={() => selectAllFilter('BOOK_AVAILABILITY')} class="btn-select-all">Seleziona Tutto</button>
+								<button on:click|stopPropagation={() => clearFilter('BOOK_AVAILABILITY')} class="btn-clear">Cancella</button>
+							</div>
+						</div>
+						{#if !filterCollapsed.BOOK_AVAILABILITY}
+							<div class="filter-options">
+								<label class="filter-option">
+									<input
+										type="checkbox"
+										checked={filters.BOOK_AVAILABILITY.includes('has-data')}
+										on:change={() => toggleFilterValue('BOOK_AVAILABILITY', 'has-data')}
+									/>
+									<span class="availability-option">
+										🟢 Disponibile
+									</span>
+								</label>
+								<label class="filter-option">
+									<input
+										type="checkbox"
+										checked={filters.BOOK_AVAILABILITY.includes('no-data')}
+										on:change={() => toggleFilterValue('BOOK_AVAILABILITY', 'no-data')}
+									/>
+									<span class="availability-option">
+										🔴 Non Disponibile
+									</span>
+								</label>
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
 
@@ -462,12 +593,20 @@
 				<button on:click={selectAllFiltered} class="btn btn-secondary">
 					Seleziona Tutti i Filtrati ({filteredSchools.length})
 				</button>
+				<button on:click={selectAllFilteredWithData} class="btn btn-success">
+					Solo con Dati Libri ({filteredSchools.filter(school => schoolBookData[school.CODICESCUOLA]).length})
+				</button>
 				<button on:click={clearSelection} class="btn btn-secondary">
 					Cancella Selezione
 				</button>
-				<span class="selection-count">
-					{selectedSchools.length} scuole selezionate
-				</span>
+				<div class="selection-info">
+					<span class="selection-count">
+						{selectedSchools.length} scuole selezionate
+					</span>
+					<span class="selection-with-data" class:valid={hasValidSelection}>
+						({selectedSchoolsWithData.length} con dati libri)
+					</span>
+				</div>
 			</div>
 
 			<!-- Lista Scuole -->
@@ -518,10 +657,18 @@
 		<!-- Sezione Elaborazione -->
 		<section class="process-section">
 			<h2>⚙️ Elabora Dati</h2>
+			
+			{#if !hasValidSelection && selectedSchools.length > 0}
+				<div class="validation-warning">
+					⚠️ Devi selezionare almeno una scuola con dati libri disponibili per elaborare i dati.
+				</div>
+			{/if}
+			
 			<button
 				on:click={processData}
-				disabled={processing}
+				disabled={processing || !hasValidSelection}
 				class="btn btn-primary process-btn"
+				title={!hasValidSelection ? 'Seleziona almeno una scuola con dati libri' : ''}
 			>
 				{#if processing}
 					🔄 Elaborazione in corso...
@@ -561,6 +708,7 @@
 		</section>
 	</main>
 </div>
+{/if}
 
 <style>
 	:global(body) {
@@ -806,6 +954,13 @@
 		margin-top: 0;
 	}
 
+	.availability-option {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-weight: 500;
+	}
+
 	.selection-actions {
 		display: flex;
 		gap: 1rem;
@@ -814,9 +969,25 @@
 		flex-wrap: wrap;
 	}
 
+	.selection-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
 	.selection-count {
 		color: #059669;
 		font-weight: 500;
+	}
+
+	.selection-with-data {
+		color: #dc2626;
+		font-size: 0.875rem;
+		font-weight: 500;
+	}
+
+	.selection-with-data.valid {
+		color: #059669;
 	}
 
 	.btn {
@@ -854,6 +1025,17 @@
 
 	.btn-secondary:hover {
 		background: #e2e8f0;
+	}
+
+	.btn-success {
+		background: #059669;
+		color: white;
+		border: 1px solid #047857;
+	}
+
+	.btn-success:hover {
+		background: #047857;
+		border-color: #065f46;
 	}
 
 	.btn-download {
@@ -984,6 +1166,19 @@
 		padding: 1rem 2rem;
 	}
 
+	.validation-warning {
+		background: #fef3c7;
+		border: 1px solid #f59e0b;
+		border-radius: 8px;
+		padding: 1rem;
+		margin-bottom: 1rem;
+		color: #92400e;
+		font-weight: 500;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
 	.loading {
 		text-align: center;
 		padding: 2rem;
@@ -1071,5 +1266,106 @@
 			flex-direction: column;
 			gap: 0.5rem;
 		}
+	}
+
+	/* Loading Overlay Styles */
+	.loading-overlay {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100vw;
+		height: 100vh;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		z-index: 9999;
+	}
+
+	.loading-content {
+		text-align: center;
+		color: white;
+		max-width: 400px;
+		padding: 2rem;
+	}
+
+	.loading-spinner {
+		width: 60px;
+		height: 60px;
+		border: 4px solid rgba(255, 255, 255, 0.3);
+		border-top: 4px solid white;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+		margin: 0 auto 2rem;
+	}
+
+	@keyframes spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+
+	.loading-content h2 {
+		margin: 0 0 1.5rem 0;
+		font-size: 1.8rem;
+		font-weight: 600;
+	}
+
+	.loading-steps {
+		background: rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
+		padding: 1.5rem;
+		margin: 1.5rem 0;
+	}
+
+	.loading-step {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 0;
+		font-size: 1rem;
+		transition: all 0.3s ease;
+	}
+
+	.loading-step.completed {
+		opacity: 0.8;
+	}
+
+	.step-icon {
+		font-size: 1.2rem;
+		min-width: 24px;
+	}
+
+	.step-text {
+		flex: 1;
+	}
+
+	.loading-subtitle {
+		margin: 1rem 0 0 0;
+		font-size: 0.9rem;
+		opacity: 0.8;
+		font-style: italic;
+	}
+
+	/* Book data loading indicator */
+	.book-data-loading {
+		background: #fef3c7;
+		border: 1px solid #f59e0b;
+		border-radius: 8px;
+		padding: 0.75rem 1rem;
+		margin-bottom: 1rem;
+		color: #92400e;
+		font-size: 0.875rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.loading-icon {
+		animation: pulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.5; }
 	}
 </style>
