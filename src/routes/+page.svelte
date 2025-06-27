@@ -232,7 +232,6 @@
 
 			if (response.ok) {
 				processResults = await response.json();
-				console.log('Process results:', processResults);
 				
 				// Generate download URLs
 				downloadUrls = {
@@ -240,7 +239,6 @@
 					output2: `/api/download/${processResults.output2}`,
 					scuoleterritorio: `/api/download/${processResults.scuoleterritorio}`
 				};
-				console.log('Download URLs:', downloadUrls);
 			} else {
 				console.error('Elaborazione fallita');
 			}

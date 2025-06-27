@@ -7,11 +7,8 @@ export async function GET({ params }) {
       // Extract unique ID from filename
     const match = filename.match(/^(CercaListe|listelibri|scuoleterritorio)_([a-zA-Z0-9]{8})\.csv$/);
     
-    console.log('Filename:', filename);
-    console.log('Regex match:', match);
     
     if (!match) {
-        console.log('Filename did not match regex pattern');
         throw error(404, 'File non trovato');
     }
     
@@ -20,22 +17,10 @@ export async function GET({ params }) {
     // Get data from the shared storage
     const sessionData = getData(uniqueId);
     
-    console.log('Download request for uniqueId:', uniqueId);
-    console.log('Session data found:', !!sessionData);
       if (!sessionData) {
-        console.log('No session data found for uniqueId:', uniqueId);
         throw error(404, 'File non trovato o scaduto');
     }
     
-    console.log('Session data keys:', Object.keys(sessionData));
-    console.log('Session data structure:', {
-        hasOutput1: 'output1' in sessionData,
-        hasOutput2: 'output2' in sessionData,
-        hasSchoolTerritory: 'schoolTerritory' in sessionData,
-        output1Length: sessionData.output1?.length,
-        output2Length: sessionData.output2?.length,
-        schoolTerritoryLength: sessionData.schoolTerritory?.length
-    });
     
     let csvContent;
     switch (fileType) {
@@ -51,10 +36,7 @@ export async function GET({ params }) {
         default:
             throw error(404, 'File non trovato');
     }
-      console.log('CSV content length:', csvContent ? csvContent.length : 'null');
-    console.log('CSV content preview:', csvContent ? csvContent.substring(0, 100) : 'null');
       if (!csvContent) {
-        console.log('CSV content is empty or null for fileType:', fileType);
         throw error(404, 'File content not found');
     }
     

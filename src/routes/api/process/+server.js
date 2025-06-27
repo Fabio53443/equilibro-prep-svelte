@@ -76,13 +76,6 @@ export async function POST({ request }) {
             schoolTerritory: schoolTerritoryCsv
         };
         
-        console.log('Storing data with uniqueId:', uniqueId);
-        console.log('Data lengths:', {
-            output1: output1Csv.length,
-            output2: output2Csv.length,
-            schoolTerritory: schoolTerritoryCsv.length
-        });
-        
         storeData(uniqueId, sessionData);
         
         return json({

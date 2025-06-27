@@ -18,20 +18,15 @@ export function storeData(uniqueId, data) {
         timestamp: Date.now()
     };
     inMemoryStorage.set(uniqueId, sessionData);
-    console.log('Stored data for uniqueId:', uniqueId, 'Total stored:', inMemoryStorage.size);
     
     // Schedule cleanup of this specific entry
     setTimeout(() => {
         inMemoryStorage.delete(uniqueId);
-        console.log('Cleaned up data for uniqueId:', uniqueId);
     }, CLEANUP_DELAY);
 }
 
 export function getData(uniqueId) {
-    console.log('Looking for uniqueId:', uniqueId);
-    console.log('Available keys in storage:', Array.from(inMemoryStorage.keys()));
     const data = inMemoryStorage.get(uniqueId);
-    console.log('Retrieved data for uniqueId:', uniqueId, 'Found:', !!data);
     return data;
 }
 
