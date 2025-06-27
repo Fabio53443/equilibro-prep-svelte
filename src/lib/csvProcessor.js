@@ -133,8 +133,8 @@ export function generateSchoolTerritoryData(schools, selectedSchools = null) {
     return schools
         .filter(school => !selectedSchools || selectedSchools.includes(school.CODICESCUOLA))
         .map(school => ({
-            NomeScuola: school.DENOMINAZIONESCUOLA,
-            CodiceMeccanografico: school.CODICESCUOLA
+            NomeScuola: `${school.DENOMINAZIONESCUOLA} - ${school.CODICESCUOLA}`,
+            CodiceMeccanografico: school.CODICESCUOLA 
         }));
 }
 
