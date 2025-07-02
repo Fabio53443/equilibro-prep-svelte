@@ -128,12 +128,64 @@
 		}, 50); // Quick response for dropdown filters
 	}
 
+	// Group schools by CODICEISTITUTORIFERIMENTO
+	$: schoolGroups = (() => {
+		const groups = new Map();
+		
+		filteredSchools.forEach(school => {
+			const groupKey = school.CODICEISTITUTORIFERIMENTO;
+			if (!groups.has(groupKey)) {
+				groups.set(groupKey, []);
+			}
+			groups.get(groupKey).push(school);
+		});
+		
+		// Convert to array of objects for easier template usage
+		return Array.from(groups.entries()).map(([groupKey, schools]) => {
+			// For groups with multiple schools, exclude schools where CODICEISTITUTORIFERIMENTO equals CODICESCUOLA from the indented list
+			const schoolsToShow = schools.length === 1 ? schools : schools.filter(school => school.CODICEISTITUTORIFERIMENTO !== school.CODICESCUOLA);
+			
+			return {
+				codiceistituto: groupKey,
+				denominazioneistituto: schools[0].DENOMINAZIONEISTITUTORIFERIMENTO,
+				schools: schools, // Keep all schools for selection logic
+				schoolsToShow: schoolsToShow, // Only schools to display in the indented list
+				isSingleSchool: schools.length === 1
+			};
+		});
+	})();
+
 	function toggleSchoolSelection(schoolCode) {
 		if (selectedSchools.includes(schoolCode)) {
 			selectedSchools = selectedSchools.filter(code => code !== schoolCode);
 		} else {
 			selectedSchools = [...selectedSchools, schoolCode];
 		}
+	}
+
+	function toggleGroupSelection(group) {
+		const groupSchoolCodes = group.schools.map(school => school.CODICESCUOLA);
+		const allSelected = groupSchoolCodes.every(code => selectedSchools.includes(code));
+		
+		if (allSelected) {
+			// Deselect all schools in the group
+			selectedSchools = selectedSchools.filter(code => !groupSchoolCodes.includes(code));
+		} else {
+			// Select all schools in the group that aren't already selected
+			const newSelections = groupSchoolCodes.filter(code => !selectedSchools.includes(code));
+			selectedSchools = [...selectedSchools, ...newSelections];
+		}
+	}
+
+	function isGroupSelected(group) {
+		const groupSchoolCodes = group.schools.map(school => school.CODICESCUOLA);
+		return groupSchoolCodes.every(code => selectedSchools.includes(code));
+	}
+
+	function isGroupPartiallySelected(group) {
+		const groupSchoolCodes = group.schools.map(school => school.CODICESCUOLA);
+		const selectedCount = groupSchoolCodes.filter(code => selectedSchools.includes(code)).length;
+		return selectedCount > 0 && selectedCount < groupSchoolCodes.length;
 	}
 
 	function selectAllFiltered() {
@@ -233,11 +285,9 @@
 			if (response.ok) {
 				processResults = await response.json();
 				
-				// Generate download URLs
+				// Generate download URL for the zip file
 				downloadUrls = {
-					output1: `/api/download/${processResults.output1}`,
-					output2: `/api/download/${processResults.output2}`,
-					scuoleterritorio: `/api/download/${processResults.scuoleterritorio}`
+					zipFile: `/api/download-zip/${processResults.zipFile}`
 				};
 			} else {
 				console.error('Elaborazione fallita');
@@ -343,27 +393,15 @@
 	async function downloadAllFiles() {
 		if (!downloadUrls || !processResults) return;
 		
-		// Download files sequentially with a small delay between each
-		const files = [
-			{ url: downloadUrls.output1, name: 'CercaListe' },
-			{ url: downloadUrls.output2, name: 'ListeLibri' },
-			{ url: downloadUrls.scuoleterritorio, name: 'ScuoleTerritorio' }
-		];
+		// Download the zip file
+		const link = document.createElement('a');
+		link.href = downloadUrls.zipFile;
+		link.download = '';
+		link.style.display = 'none';
 		
-		for (const file of files) {
-			// Create a temporary link element and click it
-			const link = document.createElement('a');
-			link.href = file.url;
-			link.download = '';
-			link.style.display = 'none';
-			
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			
-			// Small delay to prevent browser blocking multiple downloads
-			await new Promise(resolve => setTimeout(resolve, 500));
-		}
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
 	}
 </script>
 
@@ -612,41 +650,103 @@
 				<div class="loading">Caricamento scuole...</div>
 			{:else}
 				<div class="schools-list">
-					{#each filteredSchools as school}
-						<div class="school-item">
-							<label class="school-label">
-								<input
-									type="checkbox"
-									checked={selectedSchools.includes(school.CODICESCUOLA)}
-									on:change={() => toggleSchoolSelection(school.CODICESCUOLA)}
-								/>
-								<div class="school-info">
-									<div class="school-name">
-										{school.DENOMINAZIONESCUOLA}
-										{#if schoolBookData[school.CODICESCUOLA]}
-											<span 
-												class="book-indicator has-data" 
-												title="Scuola con dati libri - {schoolBookData[school.CODICESCUOLA]} classi"
-											>
-												🟢
-											</span>
-										{:else}
-											<span 
-												class="book-indicator no-data" 
-												title="Scuola senza dati libri"
-											>
-												🔴
-											</span>
-										{/if}
+					{#each schoolGroups as group}
+						{#if group.isSingleSchool}
+							<!-- Single school - display directly -->
+							{@const school = group.schools[0]}
+							<div class="school-item">
+								<label class="school-label">
+									<input
+										type="checkbox"
+										checked={selectedSchools.includes(school.CODICESCUOLA)}
+										on:change={() => toggleSchoolSelection(school.CODICESCUOLA)}
+									/>
+									<div class="school-info">
+										<div class="school-name">
+											{school.DENOMINAZIONESCUOLA}
+											{#if schoolBookData[school.CODICESCUOLA]}
+												<span 
+													class="book-indicator has-data" 
+													title="Scuola con dati libri - {schoolBookData[school.CODICESCUOLA]} classi"
+												>
+													🟢
+												</span>
+											{:else}
+												<span 
+													class="book-indicator no-data" 
+													title="Scuola senza dati libri"
+												>
+													🔴
+												</span>
+											{/if}
+										</div>
+										<div class="school-details">
+											<span class="school-code">{school.CODICESCUOLA}</span>
+											<span class="school-location">{school.COMUNE}, {school.PROVINCIA}</span>
+											<span class="school-type">{school.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA}</span>
+										</div>
 									</div>
-									<div class="school-details">
-										<span class="school-code">{school.CODICESCUOLA}</span>
-										<span class="school-location">{school.COMUNE}, {school.PROVINCIA}</span>
-										<span class="school-type">{school.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA}</span>
-									</div>
+								</label>
+							</div>
+						{:else}
+							<!-- Multiple schools - display as group -->
+							<div class="school-group">
+								<div class="group-header">
+									<label class="group-label">
+										<input
+											type="checkbox"
+											checked={isGroupSelected(group)}
+											indeterminate={isGroupPartiallySelected(group)}
+											on:change={() => toggleGroupSelection(group)}
+										/>
+										<div class="group-info">
+											<div class="group-name">
+												{group.denominazioneistituto}
+												<span class="group-count">({group.schools.length} scuole)</span>
+											</div>
+											<div class="group-code">{group.codiceistituto}</div>
+										</div>
+									</label>
+								</div>						<div class="group-schools">
+							{#each group.schoolsToShow as school}
+								<div class="school-item grouped">
+									<label class="school-label">
+										<input
+											type="checkbox"
+											checked={selectedSchools.includes(school.CODICESCUOLA)}
+											on:change={() => toggleSchoolSelection(school.CODICESCUOLA)}
+										/>
+										<div class="school-info">
+											<div class="school-name">
+												{school.DENOMINAZIONESCUOLA}
+												{#if schoolBookData[school.CODICESCUOLA]}
+													<span 
+														class="book-indicator has-data" 
+														title="Scuola con dati libri - {schoolBookData[school.CODICESCUOLA]} classi"
+													>
+														🟢
+													</span>
+												{:else}
+													<span 
+														class="book-indicator no-data" 
+														title="Scuola senza dati libri"
+													>
+														🔴
+													</span>
+												{/if}
+											</div>
+											<div class="school-details">
+												<span class="school-code">{school.CODICESCUOLA}</span>
+												<span class="school-location">{school.COMUNE}, {school.PROVINCIA}</span>
+												<span class="school-type">{school.DESCRIZIONETIPOLOGIAGRADOISTRUZIONESCUOLA}</span>
+											</div>
+										</div>
+									</label>
 								</div>
-							</label>
+							{/each}
 						</div>
+							</div>
+						{/if}
 					{/each}
 				</div>
 			{/if}
@@ -682,20 +782,15 @@
 					
 					<div class="download-links">
 						<button on:click={downloadAllFiles} class="btn btn-download btn-download-all">
-							📦 Scarica Tutti i File
+							📦 Scarica File ZIP
 						</button>
 						
-						<div class="individual-downloads">
-							<a href={downloadUrls.output1} download class="btn btn-download">
-								📋 Scarica CercaListe (Gruppi ISBN)
-							</a>
-							<a href={downloadUrls.output2} download class="btn btn-download">
-								📚 Scarica ListeLibri (Dettagli Libri)
-							</a>
-							<a href={downloadUrls.scuoleterritorio} download class="btn btn-download">
-								🏫 Scarica ScuoleTerritorio (Info Scuole)
-							</a>
-						</div>
+						<p class="download-description">
+							Il file ZIP contiene:
+							<br>• 📋 CercaListe (Gruppi ISBN)
+							<br>• 📚 ListeLibri (Dettagli Libri)  
+							<br>• 🏫 ScuoleTerritorio (Info Scuole)
+						</p>
 					</div>
 					
 					<p class="expiry-notice">
@@ -1067,16 +1162,15 @@
 		box-shadow: 0 6px 8px rgba(124, 58, 237, 0.2);
 	}
 
-	.individual-downloads {
-		display: flex;
-		gap: 1rem;
-		flex-wrap: wrap;
+	.download-description {
+		background: rgba(59, 130, 246, 0.1);
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		border-radius: 8px;
+		padding: 1rem;
 		margin-top: 0.5rem;
-	}
-
-	.individual-downloads .btn-download {
-		font-size: 0.9rem;
-		padding: 0.75rem 1.25rem;
+		color: #1e40af;
+		font-size: 0.875rem;
+		line-height: 1.6;
 	}
 
 	.schools-list {
@@ -1092,6 +1186,74 @@
 
 	.school-item:last-child {
 		border-bottom: none;
+	}
+
+	.school-item.grouped {
+		margin-left: 1rem;
+		border-bottom: 1px solid #f8fafc;
+	}
+
+	.school-group {
+		border-bottom: 1px solid #e2e8f0;
+	}
+
+	.school-group:last-child {
+		border-bottom: none;
+	}
+
+	.group-header {
+		background: #f8fafc;
+		border-bottom: 1px solid #e2e8f0;
+	}
+
+	.group-label {
+		display: flex;
+		align-items: center;
+		padding: 1rem;
+		cursor: pointer;
+		transition: background-color 0.2s;
+		font-weight: 600;
+	}
+
+	.group-label:hover {
+		background: #f1f5f9;
+	}
+
+	.group-label input[type="checkbox"] {
+		margin-right: 1rem;
+		transform: scale(1.2);
+	}
+
+	.group-info {
+		flex: 1;
+	}
+
+	.group-name {
+		color: #1e293b;
+		margin-bottom: 0.25rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.group-count {
+		font-size: 0.875rem;
+		color: #64748b;
+		font-weight: normal;
+	}
+
+	.group-code {
+		font-family: monospace;
+		background: #e2e8f0;
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		font-size: 0.875rem;
+		color: #475569;
+		display: inline-block;
+	}
+
+	.group-schools {
+		background: #fefefe;
 	}
 
 	.school-label {
@@ -1218,18 +1380,6 @@
 		box-shadow: 0 6px 8px rgba(124, 58, 237, 0.2);
 	}
 
-	.individual-downloads {
-		display: flex;
-		gap: 1rem;
-		flex-wrap: wrap;
-		margin-top: 0.5rem;
-	}
-
-	.individual-downloads .btn-download {
-		font-size: 0.9rem;
-		padding: 0.75rem 1.25rem;
-	}
-
 	@media (max-width: 768px) {
 		.container {
 			padding: 1rem;
@@ -1253,10 +1403,6 @@
 		}
 
 		.download-links {
-			flex-direction: column;
-		}
-
-		.individual-downloads {
 			flex-direction: column;
 		}
 

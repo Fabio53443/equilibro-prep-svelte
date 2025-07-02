@@ -79,9 +79,7 @@ export async function POST({ request }) {
         storeData(uniqueId, sessionData);
         
         return json({
-            output1: `CercaListe_${uniqueId}.csv`,
-            output2: `listelibri_${uniqueId}.csv`,
-            scuoleterritorio: `scuoleterritorio_${uniqueId}.csv`,
+            zipFile: `equilibro_files_${uniqueId}.zip`,
             unique_id: uniqueId
         });
         
