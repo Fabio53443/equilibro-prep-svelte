@@ -78,6 +78,8 @@ export async function POST({ request }) {
         
         storeData(uniqueId, sessionData);
         
+        console.log('Stored data for uniqueId:', uniqueId);
+        
         return json({
             zipFile: `equilibro_files_${uniqueId}.zip`,
             unique_id: uniqueId
